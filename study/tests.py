@@ -1,9 +1,11 @@
 from io import BytesIO
 import hashlib
 import tempfile
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
+from django.core.exceptions import SuspiciousFileOperation
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from django.urls import reverse
@@ -13,6 +15,7 @@ from .models import StudyArtifact, StudyDocument, StudyQuestion, TextChunk
 from .services.ai import AIService, AIServiceError
 from .services.documents import DocumentError, ExtractedPage, extract_pdf, make_chunks
 from .services.retrieval import retrieve
+from .storage import VercelPrivateBlobStorage
 
 User = get_user_model()
 
@@ -189,3 +192,30 @@ class AIServiceValidationTests(TestCase):
         AIService.reserve_usage(user.pk)
         with self.assertRaisesRegex(AIServiceError, "limit of 1"):
             AIService.reserve_usage(user.pk)
+
+
+class VercelBlobStorageTests(TestCase):
+    @patch("study.storage.get_blob_client")
+    def test_private_storage_upload_read_size_delete_and_private_url(self, get_blob_client):
+        client = get_blob_client.return_value
+        payload = b"private pdf contents"
+        client.put_blob.side_effect = lambda pathname, *_args, **_kwargs: SimpleNamespace(pathname=pathname)
+        client.get_blob.return_value = SimpleNamespace(body=payload)
+        client.head_blob.return_value = SimpleNamespace(size=len(payload))
+
+        storage = VercelPrivateBlobStorage()
+        saved_name = storage.save("documents/lecture.pdf", SimpleUploadedFile("lecture.pdf", payload))
+
+        self.assertRegex(saved_name, r"^documents/lecture-[0-9a-f]{32}\.pdf$")
+        self.assertEqual(client.put_blob.call_args.kwargs["access"], "private")
+        with storage.open(saved_name) as stored:
+            self.assertEqual(stored.read(), payload)
+        self.assertEqual(storage.size(saved_name), len(payload))
+        storage.delete(saved_name)
+        client.delete_blob.assert_called_once_with(saved_name)
+        with self.assertRaisesRegex(ValueError, "never exposed"):
+            storage.url(saved_name)
+
+    def test_private_storage_rejects_path_traversal(self):
+        with self.assertRaises(SuspiciousFileOperation):
+            VercelPrivateBlobStorage().get_available_name("../private.pdf")

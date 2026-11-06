@@ -7,8 +7,6 @@ from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
-DATA_DIR = Path(os.environ.get("DATA_DIR", BASE_DIR))
-DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def env_bool(name: str, default: bool = False) -> bool:
@@ -16,13 +14,18 @@ def env_bool(name: str, default: bool = False) -> bool:
 
 
 DEBUG = env_bool("DEBUG", False)
+IS_VERCEL = env_bool("VERCEL", False)
+DATA_DIR = Path(os.environ.get("DATA_DIR", BASE_DIR))
+if DEBUG:
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
 SECRET_KEY = os.environ.get("SECRET_KEY", "").strip()
 if not SECRET_KEY:
     if DEBUG:
         SECRET_KEY = "local-development-key-only-do-not-use-in-production"
     else:
         raise ImproperlyConfigured("SECRET_KEY must be set when DEBUG is false.")
-ALLOWED_HOSTS = [host.strip() for host in os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",") if host.strip()]
+default_allowed_hosts = "localhost,127.0.0.1,.vercel.app" if IS_VERCEL else "localhost,127.0.0.1"
+ALLOWED_HOSTS = [host.strip() for host in os.environ.get("ALLOWED_HOSTS", default_allowed_hosts).split(",") if host.strip()]
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -61,7 +64,7 @@ ASGI_APPLICATION = "config.asgi.application"
 
 database_url = os.environ.get("DATABASE_URL", "").strip()
 if database_url:
-    DATABASES = {"default": dj_database_url.parse(database_url, conn_max_age=600, ssl_require=not DEBUG)}
+    DATABASES = {"default": dj_database_url.parse(database_url, conn_max_age=0 if IS_VERCEL else 600, ssl_require=not DEBUG)}
 else:
     if not DEBUG:
         raise ImproperlyConfigured("DATABASE_URL must point to a persistent database when DEBUG is false.")
@@ -82,8 +85,14 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_DIRS = [BASE_DIR / "static"]
+blob_configured = bool(os.environ.get("BLOB_STORE_ID", "").strip() or os.environ.get("BLOB_READ_WRITE_TOKEN", "").strip())
+if IS_VERCEL and not blob_configured:
+    raise ImproperlyConfigured("Connect a private Vercel Blob store before deploying user PDF storage.")
+
 STORAGES = {
-    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "default": {
+        "BACKEND": "study.storage.VercelPrivateBlobStorage" if blob_configured else "django.core.files.storage.FileSystemStorage"
+    },
     "staticfiles": {"BACKEND": "study.storage.ManifestStaticFilesStorage"},
 }
 MEDIA_ROOT = Path(os.environ.get("MEDIA_ROOT", DATA_DIR / "media"))
@@ -110,5 +119,6 @@ X_FRAME_OPTIONS = "DENY"
 SECURE_HSTS_SECONDS = int(os.environ.get("SECURE_HSTS_SECONDS", "0" if DEBUG else "31536000"))
 SECURE_HSTS_INCLUDE_SUBDOMAINS = env_bool("SECURE_HSTS_INCLUDE_SUBDOMAINS", False)
 SECURE_HSTS_PRELOAD = env_bool("SECURE_HSTS_PRELOAD", False)
-CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in os.environ.get("CSRF_TRUSTED_ORIGINS", "").split(",") if origin.strip()]
+default_csrf_origins = "https://*.vercel.app" if IS_VERCEL else ""
+CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in os.environ.get("CSRF_TRUSTED_ORIGINS", default_csrf_origins).split(",") if origin.strip()]
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")

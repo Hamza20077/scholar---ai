@@ -20,10 +20,11 @@ The application does not pretend to generate AI answers when no provider key is 
 - Python 3.12+
 - Django 6.1
 - PostgreSQL in deployment; SQLite for local development and tests
+- Private Vercel Blob storage for deployed PDF uploads; filesystem storage locally
 - OpenAI Python SDK for AI generation
 - pypdf for PDF text extraction
 - Gunicorn and WhiteNoise for serving
-- Docker Compose for local PostgreSQL and production-like startup
+- Vercel deployment without Docker; Docker Compose remains an alternative
 
 ## Run locally on Windows
 
@@ -60,6 +61,8 @@ Open <http://127.0.0.1:8000/> and create an account. Generated documents and dat
 | `OPENAI_API_KEY` | For generation | API credential used when a signed-in student requests an answer, summary, or quiz. Extracted note excerpts are sent to that provider for that request. |
 | `OPENAI_MODEL` | No | OpenAI chat model; defaults to `gpt-4.1-mini`. |
 | `SUPPORT_EMAIL` | Public deployment | Contact address shown on the privacy page. |
+| `BLOB_STORE_ID` | Vercel | Added by connecting a private Vercel Blob store to the project. The app uses the Python SDK with Vercel OIDC credentials. |
+| `BLOB_READ_WRITE_TOKEN` | Outside Vercel | Read/write token when using the private Blob backend outside Vercel. Keep it in a secret manager. |
 | `MAX_UPLOAD_MB` | No | Per-file upload limit, defaults to 20 MB. |
 | `MAX_DOCUMENTS_PER_USER` | No | Maximum PDF count per account, defaults to 100. |
 | `MAX_TOTAL_STORAGE_MB_PER_USER` | No | Private upload storage quota per account, defaults to 500 MB. |
@@ -84,21 +87,34 @@ python manage.py collectstatic --noinput
 
 The Django test suite covers authentication boundaries, account ownership, upload/indexing, duplicate handling, source retrieval, saved output, and malformed provider responses. It does not call OpenAI or require an API key.
 
+## Deploy to Vercel without Docker
+
+Vercel detects this Django project from `manage.py` and `WSGI_APPLICATION`; `.python-version` pins the runtime. The app uses PostgreSQL for durable records and a private Vercel Blob store for PDF uploads. The code refuses to start on Vercel until a Blob store is connected, and refuses production startup without `DATABASE_URL` and `SECRET_KEY`.
+
+1. Import `Hamza20077/scholar---ai` in the Vercel dashboard and keep the root directory at the repository root.
+2. In the project Storage tab, add a PostgreSQL provider such as Neon and connect it to Production and Preview. Confirm that the integration supplies `DATABASE_URL`.
+3. Add a Vercel Blob store with **Private** access and connect it to Production and Preview. Vercel injects `BLOB_STORE_ID` and its short-lived OIDC credentials; do not create a public store for course PDFs.
+4. Configure `SECRET_KEY`, `SUPPORT_EMAIL`, and `OPENAI_API_KEY` in Vercel's encrypted environment-variable settings. Also set `ALLOWED_HOSTS=.vercel.app,your-domain.example` and `CSRF_TRUSTED_ORIGINS=https://*.vercel.app,https://your-domain.example`. Use an active OpenAI API key from the provider account that will pay for generation requests.
+5. Deploy a Preview first. After the database and Blob store are connected, run `python manage.py migrate --noinput` once with the Vercel Production database credentials, then verify signup, login, PDF upload, account deletion, and health checks on Preview.
+6. Deploy Production after the privacy contact and policy have been reviewed. Configure a custom domain and verify HTTPS before onboarding users.
+
+Vercel's Django build automatically runs static collection when `STATIC_ROOT` is configured. The SDK stores PDFs privately, uses short-lived Vercel OIDC credentials, and never returns public blob URLs. Preview and Production need separate database and Blob environments so preview uploads and accounts stay isolated.
+
+The Docker Compose deployment below is an alternative for a persistent host. Vercel's temporary function filesystem must never be used for SQLite or local uploads.
+
 ## Deploy with Docker Compose
 
-1. Install Docker Engine/Desktop on the host.
-2. Copy `.env.example` to `.env` and set a unique long `SECRET_KEY`, a strong `POSTGRES_PASSWORD`, and the public hostname in `ALLOWED_HOSTS`.
-3. Configure the HTTPS reverse proxy in front of port 8000. Set `SECURE_SSL_REDIRECT=true`, `SECURE_HSTS_SECONDS=31536000`, and `CSRF_TRUSTED_ORIGINS=https://your-domain.example` after TLS is verified. Enable HSTS subdomains or preload only if the domain is ready for those policies. Compose sets `DEBUG=false`.
-4. Set `OPENAI_API_KEY` if AI generation is required.
-5. Build and start:
+1. Copy `.env.example` to `.env` and set a unique `SECRET_KEY`, strong `POSTGRES_PASSWORD`, public `ALLOWED_HOSTS`, and `CSRF_TRUSTED_ORIGINS`.
+2. Configure the HTTPS reverse proxy in front of port 8000. Set `SECURE_SSL_REDIRECT=true` and `SECURE_HSTS_SECONDS=31536000` only after TLS is verified. Compose sets `DEBUG=false`.
+3. Set a valid `OPENAI_API_KEY` if generation is required, then build and start:
 
 ```sh
 docker compose up --build -d
 ```
 
-The entrypoint applies Django migrations before starting Gunicorn. PostgreSQL data and uploaded PDFs use named volumes. Back up both volumes, restrict access to the host and environment secrets, and monitor the `/healthz/` endpoint. To review logs, run `docker compose logs -f web`.
+PostgreSQL data and uploaded PDFs use named volumes. Back up both volumes, restrict access to secrets, and monitor `/healthz/`.
 
-For a non-Docker platform, provide the same environment variables, run `python manage.py migrate --noinput`, run `python manage.py collectstatic --noinput`, and start `gunicorn config.wsgi:application --bind 0.0.0.0:$PORT`. The platform must provide persistent private storage for `MEDIA_ROOT`, a PostgreSQL database, HTTPS, request-size limits, backups, and operational monitoring. Serverless hosts with temporary filesystems are not supported by the current local upload storage backend; configure durable private object storage before deploying there.
+For a different non-serverless host, run `python manage.py migrate --noinput`, `python manage.py collectstatic --noinput`, and start `gunicorn config.wsgi:application --bind 0.0.0.0:$PORT`. The host must provide PostgreSQL, HTTPS, persistent private PDF storage, request-size limits, backups, and monitoring.
 
 ## Security and data handling
 
@@ -116,6 +132,7 @@ For a non-Docker platform, provide the same environment variables, run `python m
 - AI outputs can be wrong. Citations identify the passages supplied to the model, not proof that every generated statement is accurate.
 - The app has no email verification, password reset delivery, organization/team roles, IP-based login/signup rate limiting, or audit log. A public deployment should add these policies and controls before onboarding users broadly.
 - Docker image build and runtime behavior depend on the deployment host; validate the exact proxy, storage, backup, and database setup before launch.
+- Vercel Blob storage has been implemented and unit-tested, but the remote private store, PostgreSQL service, migrations, and live deployment still need to be provisioned and verified in the account.
 - The PWA can be installed from a supported browser, but there are no native iOS/Android packages or store listings. Apple review expects meaningful app functionality beyond a repackaged website, and store enrollment, identity verification, device testing, app metadata, and review are still required.
 - Privacy notice copy needs an operator contact address and review against the operator's actual jurisdiction, retention periods, and provider terms before public launch.
 
