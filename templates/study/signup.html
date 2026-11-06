@@ -1,0 +1,11 @@
+{% extends 'study/base.html' %}
+{% block title %}Create account · Scholar AI{% endblock %}
+{% block content %}
+<section class="auth-layout">
+  <div class="auth-copy"><p class="eyebrow">A PRIVATE STUDY WORKSPACE</p><h1>Build understanding, one source at a time.</h1><p>Upload your lecture notes and keep your study materials together in one place.</p></div>
+  <div class="card auth-card"><h2>Create your account</h2><p class="muted">Your documents stay attached to your account.</p>
+    <form method="post">{% csrf_token %}{% for field in form %}<div class="field"><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{% if field.help_text %}<small class="help">{{ field.help_text|safe }}</small>{% endif %}{% for error in field.errors %}<small class="form-error">{{ error }}</small>{% endfor %}</div>{% endfor %}{% for error in form.non_field_errors %}<p class="form-error">{{ error }}</p>{% endfor %}<button class="button primary full" type="submit">Create account</button></form>
+    <p class="auth-switch">Already registered? <a href="{% url 'login' %}">Sign in</a></p>
+  </div>
+</section>
+{% endblock %}

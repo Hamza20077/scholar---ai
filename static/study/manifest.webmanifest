@@ -1,0 +1,14 @@
+{
+  "id": "/",
+  "name": "Scholar AI Study Assistant",
+  "short_name": "Scholar AI",
+  "description": "Study from your own course notes with cited answers, summaries, and practice quizzes.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f7f9f7",
+  "theme_color": "#087e69",
+  "icons": [
+    { "src": "/static/study/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

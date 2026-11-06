@@ -1,0 +1,25 @@
+{% extends 'study/base.html' %}
+{% block title %}{{ artifact.title }} · Scholar AI{% endblock %}
+{% block content %}
+<a class="back-link" href="{% url 'dashboard' %}">← Back to your study space</a>
+<article class="card result-card"><p class="eyebrow">{% if artifact.kind == 'summary' %}STUDY SUMMARY{% else %}PRACTICE QUIZ{% endif %} · {{ artifact.document.title }}</p><h1>{{ artifact.title }}</h1>
+  {% if artifact.kind == 'summary' %}<div class="answer-text">{{ artifact.content.text }}</div>
+  {% else %}<form id="quiz-form" class="quiz-form">{% for item in artifact.content.questions %}<fieldset class="quiz-question"><legend>{{ forloop.counter }}. {{ item.question }}</legend>{% for option in item.options %}<label><input type="radio" name="q{{ forloop.parentloop.counter0 }}" value="{{ forloop.counter0 }}" required><span>{{ option }}</span></label>{% endfor %}<div class="quiz-feedback" id="feedback-{{ forloop.counter0 }}" hidden data-answer="{{ item.answer_index }}" data-explanation="{{ item.explanation }}" data-source="{{ item.source }}"></div></fieldset>{% endfor %}<button class="button primary" type="submit">Check my answers</button><p id="quiz-score" class="quiz-score" role="status" aria-live="polite"></p></form>
+  <script>
+  document.getElementById('quiz-form').addEventListener('submit', function (event) {
+    event.preventDefault();
+    let score = 0;
+    document.querySelectorAll('.quiz-feedback').forEach(function (feedback, index) {
+      const selected = document.querySelector('input[name="q' + index + '"]:checked');
+      const correct = selected && selected.value === feedback.dataset.answer;
+      if (correct) score += 1;
+      feedback.hidden = false;
+      feedback.textContent = (correct ? 'Correct. ' : 'Review this one. ') + feedback.dataset.explanation + ' Source: ' + feedback.dataset.source + '.';
+      feedback.className = 'quiz-feedback ' + (correct ? 'correct' : 'incorrect');
+    });
+    document.getElementById('quiz-score').textContent = 'Score: ' + score + ' out of ' + document.querySelectorAll('.quiz-feedback').length;
+  });
+  </script>{% endif %}
+  <div class="artifact-footer"><span>Created {{ artifact.created_at|date:'M j, Y · g:i A' }}</span><form method="post" action="{% url 'delete_artifact' artifact.id %}" onsubmit="return confirm('Delete this saved study material?');">{% csrf_token %}<button class="text-button danger-link" type="submit">Delete material</button></form></div>
+</article>
+{% endblock %}

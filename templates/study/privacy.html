@@ -1,0 +1,12 @@
+{% extends 'study/base.html' %}
+{% block title %}Privacy · Scholar AI{% endblock %}
+{% block content %}
+<article class="card result-card policy-card"><a class="back-link" href="{% url 'dashboard' %}">← Back</a><p class="eyebrow">PRIVACY NOTICE</p><h1>How Scholar AI handles your information</h1><p class="muted">Last updated November 6, 2026</p>
+  <h2>Information stored</h2><p>Scholar AI stores your username, email address, password hash, uploaded PDF files, extracted text chunks, questions, citations, generated summaries, quizzes, and basic timestamps. Passwords are stored using Django’s password hashing. Uploaded files are kept in private application storage and are not exposed through public media URLs.</p>
+  <h2>AI processing</h2><p>When you request an answer, summary, or quiz, excerpts selected from your notes and the question or generation request are sent to the OpenAI API configured by the service operator. PDF upload and text retrieval do not send document text to OpenAI. Review OpenAI’s current terms and privacy information for details about its processing of API data.</p>
+  <h2>Retention and deletion</h2><p>Your study records remain in your account until you delete the document, delete individual study material, or delete your account. Account deletion removes the account and its related study data. Deployment backups may retain data for a limited period according to the operator’s backup and retention policy.</p>
+  <h2>Security</h2><p>The app uses authenticated sessions and scopes study records to their owner. Do not upload information you are not authorized to process.</p>
+  <h2>Contact</h2>{% if support_email %}<p>For privacy questions or requests, contact <a href="mailto:{{ support_email|escape }}">{{ support_email|escape }}</a>.</p>{% else %}<p>Privacy contact details have not been configured. The operator must set SUPPORT_EMAIL before public launch.</p>{% endif %}
+  <p class="notice">This notice describes current application behavior. Confirm applicable legal requirements, retention policy, and contact details before public release.</p>
+</article>
+{% endblock %}

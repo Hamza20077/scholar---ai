@@ -1,0 +1,12 @@
+{% extends 'study/base.html' %}
+{% block title %}Sign in · Scholar AI{% endblock %}
+{% block content %}
+<section class="auth-layout">
+  <div class="auth-copy"><p class="eyebrow">YOUR NOTES, MADE STUDYABLE</p><h1>Make your course material work harder.</h1><p>Ask questions, review clear summaries, and practise with quizzes grounded in the PDFs you upload.</p></div>
+  <div class="card auth-card"><h2>Welcome back</h2><p class="muted">Sign in to your private study workspace.</p>
+    {% if form.errors %}<p class="form-error" role="alert">Your username or password was not recognized.</p>{% endif %}
+    <form method="post">{% csrf_token %}<div class="field"><label for="id_username">Username</label>{{ form.username }}</div><div class="field"><label for="id_password">Password</label>{{ form.password }}</div><input type="hidden" name="next" value="{{ next }}"><button class="button primary full" type="submit">Sign in</button></form>
+    <p class="auth-switch">New here? <a href="{% url 'signup' %}">Create an account</a></p>
+  </div>
+</section>
+{% endblock %}

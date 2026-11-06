@@ -1,0 +1,6 @@
+{% extends 'study/base.html' %}
+{% block title %}Study answer · Scholar AI{% endblock %}
+{% block content %}
+<a class="back-link" href="{% url 'dashboard' %}">← Back to your study space</a>
+<article class="card result-card"><p class="eyebrow">ANSWER FROM YOUR NOTES</p><h1>{{ question }}</h1><div class="answer-text">{{ answer }}</div><section class="sources" aria-labelledby="sources-heading"><h2 id="sources-heading">Sources used</h2><ol>{% for source in citations %}<li><strong>[{{ source.marker }}] {{ source.document_title }}, page {{ source.page }}</strong><blockquote>{{ source.excerpt }}</blockquote></li>{% endfor %}</ol></section></article>
+{% endblock %}
